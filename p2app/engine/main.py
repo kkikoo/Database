@@ -351,6 +351,31 @@ class Engine:
                 query = "SELECT max(region_id) FROM region ;"
                 max_id = max([int(row[0]) for row in c.execute(query)])
 
+                # print(continent_id,country_id)
+                # print(type(continent_id),type(country_id))
+
+                # continent_id, country_id = int(continent_id), int (country_id)
+                if keywords == "" and wikipedia_link == "":
+                    query = "INSERT INTO region (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link,keywords) VALUES ({},'{}','{}','{}',{},{},NULL,NULL);".format(
+                        max_id + 1, region_code, local_code, name, continent_id, country_id)
+                elif keywords == "" and wikipedia_link != "":
+                    query = "INSERT INTO region (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link,keywords) VALUES ({},'{}','{}','{}',{},{},'{}',NULL);".format(
+                        max_id + 1, region_code, local_code, name, continent_id, country_id,
+                        wikipedia_link)
+
+                elif keywords != "" and wikipedia_link == "":
+                    query = "INSERT INTO region (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link,keywords) VALUES ({},'{}','{}','{}',{},{}, NULL,'{}');".format(
+                        max_id + 1, region_code, local_code, name, continent_id, country_id,
+                        keywords)
+                else:
+                    query = "INSERT INTO region (region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link,keywords) VALUES ({},'{}','{}','{}',{},{},'{}','{}');".format(
+                        max_id + 1, region_code, local_code, name, continent_id, country_id,
+                        wikipedia_link, keywords)
+
+                c.execute("PRAGMA foreign_keys = ON;")
+                c.execute(query)
+                conn.commit()
+
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
