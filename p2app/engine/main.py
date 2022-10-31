@@ -14,6 +14,7 @@ from collections import namedtuple
 from turtle import update
 
 from p2app.events.database import CloseDatabaseEvent, DatabaseClosedEvent, DatabaseOpenFailedEvent, DatabaseOpenedEvent, OpenDatabaseEvent
+from p2app.events.app import EndApplicationEvent, ErrorEvent, QuitInitiatedEvent
 
 
 class Engine:
