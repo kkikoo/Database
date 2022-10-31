@@ -325,6 +325,32 @@ class Engine:
             region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords = \
                 _[0], _[1], _[2], _[3], _[4], _[5], _[6], _[7]
 
+            #Null test，Wikipedia & keywords can be none
+            if region_code == "" or local_code == "" or name == "" or continent_id == "" or country_id == "":
+                return_event.append(SaveRegionFailedEvent(
+                    "region_code, local_code, name, continent_id, country_id can not be empty!"))
+
+            elif region_code in (
+                    [row[0] for row in c.execute("SELECT (region_code) FROM region ;")]):
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input region_code is the same as the region_code already in the database!!!")
+                )
+
+            elif country_id not in country_id_list:
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input country_id is not record in database!!!")
+                )
+            elif continent_id not in continent_id_list:
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input continent_id is not record in database!!!")
+                )
+            else:
+                query = "SELECT max(region_id) FROM region ;"
+                max_id = max([int(row[0]) for row in c.execute(query)])
+
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
