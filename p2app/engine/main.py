@@ -8,9 +8,13 @@
 # This is the outermost layer of the part of the program that you'll need to build,
 # which means that YOU WILL DEFINITELY NEED TO MAKE CHANGES TO THIS FILE.
 
+
 import sqlite3
 from collections import namedtuple
 from turtle import update
+
+from p2app.events.database import CloseDatabaseEvent, DatabaseClosedEvent, DatabaseOpenFailedEvent, DatabaseOpenedEvent, OpenDatabaseEvent
+
 
 class Engine:
     """An object that represents the application's engine, whose main role is to
