@@ -8,7 +8,9 @@
 # This is the outermost layer of the part of the program that you'll need to build,
 # which means that YOU WILL DEFINITELY NEED TO MAKE CHANGES TO THIS FILE.
 
-
+import sqlite3
+from collections import namedtuple
+from turtle import update
 
 class Engine:
     """An object that represents the application's engine, whose main role is to
@@ -19,7 +21,28 @@ class Engine:
 
     def __init__(self):
         """Initializes the engine"""
+        self._file_path = None
         pass
+
+    def process_Application_level_events(self, event, return_event: list):
+        # open database
+        # close database
+        # exit
+        if isinstance(event, OpenDatabaseEvent):
+            S = str(event.path())
+            if len(S) < 3 or S[-3:] != '.db':  # db file
+                return_event.append(
+                    DatabaseOpenFailedEvent("Please open a db file !!!"))
+
+            else:
+                self._file_path = event.path()
+                return_event.append(DatabaseOpenedEvent(event.path()))
+
+        elif isinstance(event, QuitInitiatedEvent):
+            return_event.append(EndApplicationEvent())
+
+        elif isinstance(event, CloseDatabaseEvent):
+            return_event.append(DatabaseClosedEvent)
 
 
     def process_event(self, event):
