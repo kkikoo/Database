@@ -39,7 +39,7 @@ class Engine:
         # exit
         if isinstance(event, OpenDatabaseEvent):
             S = str(event.path())
-            if len(S) < 3 or S[-3:] != '.db':  # db file
+            if len(S) < 3 or S[-3:] != '.db':  # must be db file
                 return_event.append(
                     DatabaseOpenFailedEvent("Please open a db file !!!"))
 
@@ -54,7 +54,9 @@ class Engine:
             return_event.append(DatabaseClosedEvent)
 
     def process_Continent_related_events(self, event, return_event: list):
-
+        # look for "continent" in database
+        # add "continent" in database
+        # update original continent
         Continent = namedtuple(
             'Continent', ['continent_id', 'continent_code', 'name'])
 
@@ -68,7 +70,7 @@ class Engine:
             if code == None:
                 query = "SELECT * FROM continent WHERE name = '{}';".format(
                     name)
-            elif name == None:
+            elif name == None: #Neither
                 query = "SELECT * FROM continent WHERE continent_code = '{}';".format(
                     code)
             else:
@@ -91,17 +93,17 @@ class Engine:
             _ = event._continent
             id, code, name = _[0], _[1], _[2]
 
-
+            # cannot be none
             if (code == "") or (name == ""):
                 return_event.append(SaveContinentFailedEvent(
                     "continent_code and continent_name can not be empty!!!"))
 
-
+            #code has to be unique
             elif code in (
                     [row[0] for row in c.execute("SELECT (continent_code) FROM continent ;")]):
                 return_event.append(SaveContinentFailedEvent(
                     "Your input code is the same as the continent_code already in the database!!!"))
-
+            #start searching
             else:
                 query = "SELECT max(continent_id) FROM continent ;"
                 max_id = max([int(row[0]) for row in c.execute(query)])
@@ -121,7 +123,7 @@ class Engine:
                 return_event.append(SaveContinentFailedEvent(
                     "continent_code and continent_name can not be empty!!!"))
 
-            # unique
+            # unique, no "(where ... != ...)"
             elif code in ([row[0] for row in
                            c.execute(
                                "SELECT (continent_code) FROM continent where continent_id != {};".format(
@@ -130,7 +132,7 @@ class Engine:
                     "Your input continent_code is the same as the continent_code already in the database!!!"))
 
             #update
-
+            #name & code cannot be none
             else:
                 query = "UPDATE continent  SET continent_code='{}', name='{}'  WHERE continent_id={};".format(
                     code, name, id)
@@ -140,9 +142,12 @@ class Engine:
                 return_event.append(ContinentSavedEvent(
                     Continent(id, code, name)))
 
-        conn.close()
+        conn.close() #close database
 
     def process_Country_related_events(self, event, return_event: list):
+        #look for "country" in database
+        #add "country" in database
+        #update original country
         Country = namedtuple(
             'Country',
             ['country_id', 'country_code', 'name', 'continent_id', 'wikipedia_link', 'keywords'])
@@ -180,7 +185,7 @@ class Engine:
                                                                                          0], _[1], \
                                                                                      _[2], _[3], _[
                                                                                          4], _[5]
-
+            #below cannot be non, only keywords can
             if country_code == "" or name == "" or continent_id == "" or wikipedia_link == "":
                 return_event.append(SaveCountryFailedEvent(
                     "country_code and country_name and continent_id and wikipedia_link can not be empty!!!"))
@@ -195,7 +200,7 @@ class Engine:
                 return_event.append(SaveCountryFailedEvent(
                     "Your input continent_id is not record in database!!!"))
 
-            # pass test
+            # pass test, start
             else:
                 query = "SELECT max(country_id) FROM country ;"
                 max_id = max([int(row[0]) for row in c.execute(query)])
@@ -231,7 +236,6 @@ class Engine:
                 return_event.append(SaveCountryFailedEvent(
                     "Your input country_code is the same as the country_code already in the database!!!"))
 
-            # 外键约束
             elif continent_id not in [int(row[0]) for row in
                                       c.execute("SELECT (continent_id) FROM continent ;")]:
                 return_event.append(SaveCountryFailedEvent(
@@ -254,6 +258,72 @@ class Engine:
                     country_id, country_code, name, continent_id, wikipedia_link, keywords)))
 
         conn.close()  # close database
+
+    def process_Region_related_events(self, event, return_event: list):
+        #look for "region" in database
+        #add "region" in database
+        #update original region
+        Region = namedtuple(
+            'Region',
+            ['region_id', 'region_code', 'local_code', 'name',
+             'continent_id', 'country_id', 'wikipedia_link', 'keywords'])
+        conn = sqlite3.connect(self._file_path)
+        c = conn.cursor()
+        query = ""
+
+        if isinstance(event, StartRegionSearchEvent):
+            local_code = event._local_code
+            name = event._name
+            region_code = event._region_code
+
+            limit_of_local_code = ""
+            limit_of_name = ""
+            limit_of_region_code = ""
+
+            if local_code != None:
+                limit_of_local_code = "local_code = '{}'".format(local_code)
+            else:
+                limit_of_local_code = "local_code is not NULL"
+
+            if name != None:
+                limit_of_name = "name = '{}'".format(name)
+            else:
+                limit_of_name = "name is not NULL"
+
+            if region_code != None:
+                limit_of_region_code = "region_code = '{}'".format(region_code)
+            else:
+                limit_of_region_code = "region_code is not NULL"
+
+            query = "select * from region where " + limit_of_local_code + \
+                    " and " + limit_of_name + " and " + limit_of_region_code + ";"
+
+            for row in c.execute(query):
+                _ = Region(row[0], row[1], row[2], row[3],
+                           row[4], row[5], row[6], row[7])
+                return_event.append(
+                    RegionSearchResultEvent(_)
+                )
+
+        elif isinstance(event, LoadRegionEvent):
+            id = event._region_id
+            query = "SELECT * FROM region WHERE region_id = {};".format(id)
+            for row in c.execute(query):
+                _ = Region(row[0], row[1], row[2], row[3],
+                           row[4], row[5], row[6], row[7])
+                return_event.append(
+                    RegionLoadedEvent(_)
+                )
+        elif isinstance(event, SaveNewRegionEvent):
+            _ = event._region
+
+            continent_id_list = [int(row[0]) for row in c.execute(
+                "SELECT (continent_id) FROM continent ;")]
+            country_id_list = [int(row[0]) for row in c.execute(
+                "SELECT (country_id) FROM country ;")]
+
+            region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords = \
+                _[0], _[1], _[2], _[3], _[4], _[5], _[6], _[7]
 
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
