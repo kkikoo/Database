@@ -15,6 +15,10 @@ from turtle import update
 
 from p2app.events.database import CloseDatabaseEvent, DatabaseClosedEvent, DatabaseOpenFailedEvent, DatabaseOpenedEvent, OpenDatabaseEvent
 from p2app.events.app import EndApplicationEvent, ErrorEvent, QuitInitiatedEvent
+from p2app.events.continents import ContinentLoadedEvent, ContinentSavedEvent, ContinentSearchResultEvent, LoadContinentEvent, SaveContinentEvent, SaveContinentFailedEvent, SaveNewContinentEvent, StartContinentSearchEvent
+from p2app.events.countries import CountryLoadedEvent, CountrySavedEvent, CountrySearchResultEvent, LoadCountryEvent, SaveCountryEvent, SaveCountryFailedEvent, SaveNewCountryEvent, StartCountrySearchEvent
+from p2app.events.regions import LoadRegionEvent, RegionLoadedEvent, RegionSavedEvent, RegionSearchResultEvent, SaveNewRegionEvent, SaveRegionEvent, SaveRegionFailedEvent, StartRegionSearchEvent
+
 
 
 class Engine:
@@ -48,6 +52,95 @@ class Engine:
 
         elif isinstance(event, CloseDatabaseEvent):
             return_event.append(DatabaseClosedEvent)
+
+    def process_Continent_related_events(self, event, return_event: list):
+
+        Continent = namedtuple(
+            'Continent', ['continent_id', 'continent_code', 'name'])
+
+        conn = sqlite3.connect(self._file_path)
+        c = conn.cursor()
+        query = ""
+
+        if isinstance(event, StartContinentSearchEvent):
+            code, name = event._continent_code, event._name
+
+            if code == None:
+                query = "SELECT * FROM continent WHERE name = '{}';".format(
+                    name)
+            elif name == None:
+                query = "SELECT * FROM continent WHERE continent_code = '{}';".format(
+                    code)
+            else:
+                query = "SELECT * FROM continent WHERE continent_code = '{}' and name = '{}';".format(
+                    code, name)
+            for row in c.execute(query):
+                _ = Continent(row[0], row[1], row[2])
+                return_event.append(ContinentSearchResultEvent(_))
+
+        elif isinstance(event, LoadContinentEvent):
+            id = event._continent_id
+            query = "SELECT * FROM continent WHERE continent_id = {};".format(
+                id)
+
+            for row in c.execute(query):
+                _ = Continent(row[0], row[1], row[2])
+                return_event.append(ContinentLoadedEvent(_))
+
+        elif isinstance(event, SaveNewContinentEvent):
+            _ = event._continent
+            id, code, name = _[0], _[1], _[2]
+
+
+            if (code == "") or (name == ""):
+                return_event.append(SaveContinentFailedEvent(
+                    "continent_code and continent_name can not be empty!!!"))
+
+
+            elif code in (
+                    [row[0] for row in c.execute("SELECT (continent_code) FROM continent ;")]):
+                return_event.append(SaveContinentFailedEvent(
+                    "Your input code is the same as the continent_code already in the database!!!"))
+
+            else:
+                query = "SELECT max(continent_id) FROM continent ;"
+                max_id = max([int(row[0]) for row in c.execute(query)])
+                query = "INSERT INTO continent (continent_id, continent_code, name) VALUES ({},'{}','{}');".format(
+                    max_id + 1, code, name)
+                c.execute(query)
+                conn.commit()
+                return_event.append(ContinentSavedEvent(
+                    Continent(max_id + 1, code, name)))
+
+        elif isinstance(event, SaveContinentEvent):
+            _ = event._continent
+            id, code, name = _[0], _[1], _[2]
+
+            # Not Null check
+            if (code == "") or (name == ""):
+                return_event.append(SaveContinentFailedEvent(
+                    "continent_code and continent_name can not be empty!!!"))
+
+            # unique
+            elif code in ([row[0] for row in
+                           c.execute(
+                               "SELECT (continent_code) FROM continent where continent_id != {};".format(
+                                   id))]):
+                return_event.append(SaveContinentFailedEvent(
+                    "Your input continent_code is the same as the continent_code already in the database!!!"))
+
+            #update
+
+            else:
+                query = "UPDATE continent  SET continent_code='{}', name='{}'  WHERE continent_id={};".format(
+                    code, name, id)
+
+                c.execute(query)
+                conn.commit()
+                return_event.append(ContinentSavedEvent(
+                    Continent(id, code, name)))
+
+        conn.close()
 
 
     def process_event(self, event):
