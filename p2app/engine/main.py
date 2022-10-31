@@ -142,6 +142,118 @@ class Engine:
 
         conn.close()
 
+    def process_Country_related_events(self, event, return_event: list):
+        Country = namedtuple(
+            'Country',
+            ['country_id', 'country_code', 'name', 'continent_id', 'wikipedia_link', 'keywords'])
+        conn = sqlite3.connect(self._file_path)
+        c = conn.cursor()
+        query = ""
+
+        if isinstance(event, StartCountrySearchEvent):
+            code, name = event._country_code, event._name
+
+            if code == None:
+                query = "SELECT * FROM country WHERE name = '{}';".format(
+                    name)
+            elif name == None:
+                query = "SELECT * FROM country WHERE country_code = '{}';".format(
+                    code)
+            else:
+                query = "SELECT * FROM country WHERE country_code = '{}' and name = '{}';".format(
+                    code, name)
+            for row in c.execute(query):
+                _ = Country(row[0], row[1], row[2], row[3], row[4], row[5])
+                return_event.append(CountrySearchResultEvent(_))
+
+        elif isinstance(event, LoadCountryEvent):
+            id = event._country_id
+            query = "SELECT * FROM country WHERE country_id = {};".format(id)
+
+            for row in c.execute(query):
+                _ = Country(row[0], row[1], row[2], row[3], row[4], row[5])
+                return_event.append(CountryLoadedEvent(_))
+
+        elif isinstance(event, SaveNewCountryEvent):
+            _ = event._country
+            country_id, country_code, name, continent_id, wikipedia_link, keywords = _[
+                                                                                         0], _[1], \
+                                                                                     _[2], _[3], _[
+                                                                                         4], _[5]
+
+            if country_code == "" or name == "" or continent_id == "" or wikipedia_link == "":
+                return_event.append(SaveCountryFailedEvent(
+                    "country_code and country_name and continent_id and wikipedia_link can not be empty!!!"))
+            # unique test
+            elif country_code in ([row[0] for row in
+                                   c.execute("SELECT (country_code) FROM country ;")]):
+                return_event.append(SaveCountryFailedEvent(
+                    "Your input code is the same as the country_code already in the database!!!"))
+
+            elif continent_id not in [int(row[0]) for row in
+                                      c.execute("SELECT (continent_id) FROM continent;")]:
+                return_event.append(SaveCountryFailedEvent(
+                    "Your input continent_id is not record in database!!!"))
+
+            # pass test
+            else:
+                query = "SELECT max(country_id) FROM country ;"
+                max_id = max([int(row[0]) for row in c.execute(query)])
+
+                if keywords == "":
+                    query = "INSERT INTO country (country_id, country_code, name, continent_id, wikipedia_link, keywords) VALUES ({},'{}','{}',{},'{}',NULL);".format(
+                        max_id + 1, country_code, name, continent_id, wikipedia_link)
+                else:
+                    query = "INSERT INTO country (country_id, country_code, name, continent_id, wikipedia_link, keywords) VALUES ({},'{}','{}',{},'{}','{}');".format(
+                        max_id + 1, country_code, name, continent_id, wikipedia_link, keywords)
+
+                c.execute("PRAGMA foreign_keys = ON;")
+                c.execute(query)
+                conn.commit()
+                return_event.append(CountrySavedEvent(
+                    Country(max_id + 1, country_code, name, continent_id, wikipedia_link,
+                            keywords)))
+
+        elif isinstance(event, SaveCountryEvent):
+            _ = event._country
+            country_id, country_code, name, continent_id, wikipedia_link, keywords = _[
+                                                                                         0], _[1], \
+                                                                                     _[2], _[3], _[
+                                                                                         4], _[5]
+            # Not NULL test
+            if country_code == "" or name == "" or continent_id == "" or wikipedia_link == "":
+                return_event.append(SaveCountryFailedEvent(
+                    "country_code and country_name and continent_id and wikipedia_link can not be empty!!!"))
+            # unique
+            elif country_code in ([row[0] for row in c.execute(
+                    "SELECT (country_code) FROM country where country_id != {};".format(
+                        country_id))]):
+                return_event.append(SaveCountryFailedEvent(
+                    "Your input country_code is the same as the country_code already in the database!!!"))
+
+            # 外键约束
+            elif continent_id not in [int(row[0]) for row in
+                                      c.execute("SELECT (continent_id) FROM continent ;")]:
+                return_event.append(SaveCountryFailedEvent(
+                    "Your input continent_id is not record in database!!!"))
+            # pass test, update
+            else:
+                if keywords == None or keywords == "":
+                    keywords = ""
+                    c.execute(
+                        "update country set keywords=NULL where country_id={};".format(country_id))
+
+                query = "UPDATE country SET country_code='{}', name='{}', continent_id={}, \
+                        wikipedia_link='{}'  WHERE country_id={};".format(
+                    country_code, name, continent_id, wikipedia_link, country_id)
+
+                c.execute("PRAGMA foreign_keys = ON;")
+                c.execute(query)
+                conn.commit()
+                return_event.append(CountrySavedEvent(Country(
+                    country_id, country_code, name, continent_id, wikipedia_link, keywords)))
+
+        conn.close()  # close database
 
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
