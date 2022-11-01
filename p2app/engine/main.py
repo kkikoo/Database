@@ -376,6 +376,66 @@ class Engine:
                 c.execute(query)
                 conn.commit()
 
+                return_event.append(
+                    RegionSavedEvent(Region(max_id + 1, region_code, local_code,
+                                            name, continent_id, country_id, wikipedia_link,
+                                            keywords))
+                )
+
+        elif isinstance(event, SaveRegionEvent):
+            _ = event._region
+
+            continent_id_list = [int(row[0]) for row in c.execute(
+                "SELECT (continent_id) FROM continent ;")]
+            country_id_list = [int(row[0]) for row in c.execute(
+                "SELECT (country_id) FROM country ;")]
+
+            region_id, region_code, local_code, name, continent_id, country_id, wikipedia_link, keywords = \
+                _[0], _[1], _[2], _[3], _[4], _[5], _[6], _[7]
+
+            if region_code == "" or local_code == "" or name == "" or continent_id == "" or country_id == "":
+                return_event.append(SaveRegionFailedEvent(
+                    "region_code, local_code, name, continent_id, country_id, wikipedia_link can not be empty!"))
+
+            elif region_code in ([row[0] for row in c.execute(
+                    "SELECT (region_code) FROM region where region_id != {};".format(region_id))]):
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input region_code is the same as the region_code already in the database!!!")
+                )
+            elif country_id not in country_id_list:
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input country_id is not record in database!!!")
+                )
+            elif continent_id not in continent_id_list:
+                return_event.append(
+                    SaveRegionFailedEvent(
+                        "Your input continent_id is not record in database!!!")
+                )
+            else:
+                if keywords == None or keywords == "":
+                    c.execute(
+                        "UPDATE region SET keywords=NULL where region_id={}".format(region_id))
+                    keywords = ""
+                if wikipedia_link == None or wikipedia_link == "":
+                    wikipedia_link = ""
+                    c.execute("UPDATE region SET wikipedia_link=NULL where region_id={}".format(
+                        region_id))
+
+                query = "UPDATE region SET region_code='{}', local_code='{}',name = '{}', continent_id={}, \
+                       country_id = {}  WHERE region_id={};".format(
+                    region_code, local_code, name, continent_id, country_id, region_id)
+
+                c.execute("PRAGMA foreign_keys = ON;")
+                c.execute(query)
+                conn.commit()
+                return_event.append(RegionSavedEvent(Region(
+                    region_id, region_code, local_code, name, continent_id, country_id,
+                    wikipedia_link, keywords)))
+
+        conn.close()
+
     def process_event(self, event):
         """A generator function that processes one event sent from the user interface,
         yielding zero or more events in response."""
@@ -383,4 +443,39 @@ class Engine:
         # This is a way to write a generator function that always yields zero values.
         # You'll want to remove this and replace it with your own code, once you start
         # writing your engine, but this at least allows the program to run.
+        print("receive: ", event)
+        return_event = []
+        # 3 + 4 + 4 + 4 = 15 events
+        # Case 1: Application-level events
+        if isinstance(event, OpenDatabaseEvent) or \
+                isinstance(event, QuitInitiatedEvent) or \
+                isinstance(event, CloseDatabaseEvent):
+            self.process_Application_level_events(event, return_event)
+
+        # Case2: Continent-related events
+        elif isinstance(event, StartContinentSearchEvent) or \
+                isinstance(event, LoadContinentEvent) or \
+                isinstance(event, SaveNewContinentEvent) or \
+                isinstance(event, SaveContinentEvent):
+            self.process_Continent_related_events(event, return_event)
+
+        # Case3: Country-related events
+        elif isinstance(event, StartCountrySearchEvent) or \
+                isinstance(event, LoadCountryEvent) or \
+                isinstance(event, SaveNewCountryEvent) or \
+                isinstance(event, SaveCountryEvent):
+            self.process_Country_related_events(event, return_event)
+
+        # Case4: Region-related events
+        elif isinstance(event, StartRegionSearchEvent) or \
+                isinstance(event, LoadRegionEvent) or \
+                isinstance(event, SaveNewRegionEvent) or \
+                isinstance(event, SaveRegionEvent):
+            self.process_Region_related_events(event, return_event)
+
+        else:
+            return_event.append(ErrorEvent(
+                "Unexpected error! Please quit and try again!"))
+
+        print("output: ", return_event)
         yield from ()
