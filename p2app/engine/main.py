@@ -478,4 +478,4 @@ class Engine:
                 "Unexpected error! Please quit and try again!"))
 
         print("output: ", return_event)
-        yield from ()
+        yield from (return_event)
